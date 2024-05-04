@@ -1,9 +1,7 @@
-package io.github.kebritam.redis.util.distlist;
+package io.github.kebritam.redis.util.distcollection;
 
 import com.redis.testcontainers.RedisStackContainer;
 import io.github.kebritam.redis.util.common.ElementTranslator;
-import io.github.kebritam.redis.util.distcollection.list.DistributedList;
-import io.github.kebritam.redis.util.distcollection.list.DistributedQueue;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,21 +15,23 @@ class DistQueueTest {
 
     private final ElementTranslator<String> elementTranslator = new ElementTranslator<>() {
         @Override
-        public byte[] serialize(String element) {
-            return element.getBytes();
+        public String serialize(String element) {
+            return element;
         }
         @Override
-        public String deserialize(byte[] bytes) {
-            return new String(bytes);
+        public String deserialize(String bytes) {
+            return bytes;
         }
     };
 
-    private DistributedList<String> redisList;
+    private Queue<String> redisList;
 
     @BeforeEach
     void setUp() {
         container.start();
-        this.redisList = new DistributedQueue<>(container.getRedisHost(), container.getRedisPort(), this.elementTranslator);
+        this.redisList = new DistributedQueue<>(
+                container.getRedisHost() + ":" + container.getRedisPort(),
+                this.elementTranslator);
     }
 
     @AfterEach
@@ -41,36 +41,36 @@ class DistQueueTest {
 
     @Test
     void sizeShouldReturnSixAfterSixPushes() {
-        this.redisList.push("element 1");
-        this.redisList.push("element 2");
-        this.redisList.push("element 3");
-        this.redisList.push("element 4");
-        this.redisList.push("element 5");
-        this.redisList.push("element 6");
+        this.redisList.pushLast("element 1");
+        this.redisList.pushLast("element 2");
+        this.redisList.pushLast("element 3");
+        this.redisList.pushLast("element 4");
+        this.redisList.pushLast("element 5");
+        this.redisList.pushLast("element 6");
 
         Assertions.assertEquals(6, this.redisList.size());
     }
 
     @Test
-    void popShouldReturnAndRemoveTheLatestPushed() {
+    void popFirstShouldReturnAndRemoveTheLatestPushed() {
         String elementVal = "element ";
 
-        this.redisList.push(elementVal + "1");
-        this.redisList.push(elementVal + "2");
-        this.redisList.push(elementVal + "3");
-        this.redisList.push(elementVal + "4");
-        this.redisList.push(elementVal + "5");
+        this.redisList.pushLast(elementVal + "1");
+        this.redisList.pushLast(elementVal + "2");
+        this.redisList.pushLast(elementVal + "3");
+        this.redisList.pushLast(elementVal + "4");
+        this.redisList.pushLast(elementVal + "5");
 
         for (long i = 1 ; i <= this.redisList.size() ; ++i) {
-            Assertions.assertEquals(elementVal + i, this.redisList.pop());
+            Assertions.assertEquals(elementVal + i, this.redisList.popFirst());
         }
     }
 
     @Test
-    void popShouldBlockIfNoElementExists() throws InterruptedException {
+    void popFirstShouldBlockIfNoElementExists() throws InterruptedException {
         Thread popThread = Thread.ofVirtual().start(() -> {
             try {
-                this.redisList.pop();
+                this.redisList.popFirst();
                 Assertions.fail("The method has not blocked the thread");
             } catch (JedisConnectionException e) {
                 // This MAY happen because of interrupt
@@ -83,23 +83,23 @@ class DistQueueTest {
     }
 
     @Test
-    void pollShouldReturnTheLatestElement() {
-        this.redisList.push("element 1");
+    void pollFirstShouldReturnTheLatestElement() {
+        this.redisList.pushLast("element 1");
 
-        Assertions.assertEquals("element 1", this.redisList.poll());
+        Assertions.assertEquals("element 1", this.redisList.pollFirst());
     }
 
     @Test
-    void pollShouldReturnNullWhenEmpty() {
-        Assertions.assertNull(this.redisList.poll());
-        Assertions.assertNull(this.redisList.poll());
+    void pollFirstShouldReturnNullWhenEmpty() {
+        Assertions.assertNull(this.redisList.pollFirst());
+        Assertions.assertNull(this.redisList.pollFirst());
     }
 
     @Test
-    void peekShouldReturnLatestElementWithoutRemove() {
-        this.redisList.push("element 1");
+    void peekFirstShouldReturnLatestElementWithoutRemove() {
+        this.redisList.pushLast("element 1");
 
-        Assertions.assertEquals("element 1", this.redisList.peek());
+        Assertions.assertEquals("element 1", this.redisList.peekFirst());
         Assertions.assertEquals(1, this.redisList.size());
     }
 
@@ -109,19 +109,19 @@ class DistQueueTest {
 
         Thread t1 = Thread.startVirtualThread(() -> {
             for (int i = 0; i < 5_000; ++i) {
-                this.redisList.push("1_element " + i);
+                this.redisList.pushLast("1_element " + i);
             }
         });
 
         Thread t2 = Thread.startVirtualThread(() -> {
             for (int i = 0; i < 5_000; ++i) {
-                this.redisList.push("2_element " + i);
+                this.redisList.pushLast("2_element " + i);
             }
         });
 
         Thread t3 = Thread.startVirtualThread(() -> {
             for (int i = 0; i < 5_000; ++i) {
-                this.redisList.push("3_element " + i);
+                this.redisList.pushLast("3_element " + i);
             }
         });
 

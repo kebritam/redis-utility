@@ -1,4 +1,4 @@
-#!lua name=dislock
+#!lua name=distlock
 
 local function release_lock(KEYS, ARGV)
     local key = KEYS[1]

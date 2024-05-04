@@ -2,7 +2,7 @@ package io.github.kebritam.redis.util.common;
 
 public interface ElementTranslator<E> {
 
-    byte[] serialize(E element);
+    String serialize(E element);
 
-    E deserialize(byte[] bytes);
+    E deserialize(String bytes);
 }
