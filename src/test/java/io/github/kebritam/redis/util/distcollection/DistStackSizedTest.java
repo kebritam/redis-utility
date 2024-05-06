@@ -7,9 +7,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.utility.DockerImageName;
-import redis.clients.jedis.exceptions.JedisConnectionException;
 
-class DistStackTest {
+class DistStackSizedTest {
 
     private static final RedisStackContainer container
             = new RedisStackContainer(DockerImageName.parse("redis/redis-stack:7.2.0-v9-x86_64"));
@@ -17,7 +16,6 @@ class DistStackTest {
     private final ElementTranslator<String> elementTranslator = new ElementTranslator<>() {
         @Override
         public String serialize(String element) { return element; }
-
         @Override
         public String deserialize(String bytes) { return bytes; }
     };
@@ -29,7 +27,8 @@ class DistStackTest {
         container.start();
         this.redisStack = new DistributedStack<>(
                 container.getRedisHost() + ":" + container.getRedisPort(),
-                this.elementTranslator);
+                this.elementTranslator,
+                4);
     }
 
     @AfterEach
@@ -38,7 +37,7 @@ class DistStackTest {
     }
 
     @Test
-    void sizeShouldReturnSixAfterSixPushes() {
+    void sizeShouldReturnFourAfterSixPushesAndTwoFirstElementsShouldDrop() {
         this.redisStack.pushFirst("element 1");
         this.redisStack.pushFirst("element 2");
         this.redisStack.pushFirst("element 3");
@@ -46,64 +45,41 @@ class DistStackTest {
         this.redisStack.pushFirst("element 5");
         this.redisStack.pushFirst("element 6");
 
-        Assertions.assertEquals(6, this.redisStack.size());
+        Assertions.assertEquals(4, this.redisStack.size());
+    }
+
+    @Test
+    void offerLastShouldReturnFalseIfQueueIsFullAndTrueIfInsertIsSuccessful() {
+        boolean res1 = this.redisStack.offerFirst("element 1");
+        boolean res2 = this.redisStack.offerFirst("element 2");
+        boolean res3 = this.redisStack.offerFirst("element 3");
+        boolean res4 = this.redisStack.offerFirst("element 4");
+        boolean res5 = this.redisStack.offerFirst("element 5");
+        boolean res6 = this.redisStack.offerFirst("element 6");
+
+        Assertions.assertTrue(res1);
+        Assertions.assertTrue(res2);
+        Assertions.assertTrue(res3);
+        Assertions.assertTrue(res4);
+        Assertions.assertFalse(res5);
+        Assertions.assertFalse(res6);
+        Assertions.assertEquals(4, this.redisStack.size());
     }
 
     @Test
     void popFirstShouldReturnAndRemoveTheLatestPushed() {
-        String elementVal = "element ";
+        this.redisStack.pushFirst("element 1");
+        this.redisStack.pushFirst("element 2");
+        this.redisStack.pushFirst("element 3");
+        this.redisStack.pushFirst("element 4");
+        this.redisStack.pushFirst("element 5");
+        this.redisStack.pushFirst("element 6");
 
-        this.redisStack.pushFirst(elementVal + "1");
-        this.redisStack.pushFirst(elementVal + "2");
-        this.redisStack.pushFirst(elementVal + "3");
-        this.redisStack.pushFirst(elementVal + "4");
-        this.redisStack.pushFirst(elementVal + "5");
-
-        Assertions.assertEquals(5, this.redisStack.size());
-
-        Assertions.assertEquals(elementVal + "5", this.redisStack.popFirst());
-        Assertions.assertEquals(elementVal + "4", this.redisStack.popFirst());
-        Assertions.assertEquals(elementVal + "3", this.redisStack.popFirst());
-        Assertions.assertEquals(elementVal + "2", this.redisStack.popFirst());
-        Assertions.assertEquals(elementVal + "1", this.redisStack.popFirst());
+        Assertions.assertEquals("element 6", this.redisStack.popFirst());
+        Assertions.assertEquals("element 5", this.redisStack.popFirst());
+        Assertions.assertEquals("element 4", this.redisStack.popFirst());
+        Assertions.assertEquals("element 3", this.redisStack.popFirst());
         Assertions.assertEquals(0, this.redisStack.size());
-    }
-
-    @Test
-    void popFirstShouldBlockIfNoElementExists() throws InterruptedException {
-        Thread popThread = Thread.ofVirtual().start(() -> {
-            try {
-                this.redisStack.popFirst();
-                Assertions.fail("The method has not blocked the thread");
-            } catch (JedisConnectionException e) {
-                // This MAY happen because of interrupt
-            }
-
-        });
-
-        Thread.sleep(100);
-        popThread.interrupt();
-    }
-
-    @Test
-    void pollFirstShouldReturnTheLatestElement() {
-        this.redisStack.pushFirst("element 1");
-
-        Assertions.assertEquals("element 1", this.redisStack.pollFirst());
-    }
-
-    @Test
-    void pollFirstShouldReturnNullWhenEmpty() {
-        Assertions.assertNull(this.redisStack.pollFirst());
-        Assertions.assertNull(this.redisStack.pollFirst());
-    }
-
-    @Test
-    void peekFirstShouldReturnLatestElementWithoutRemove() {
-        this.redisStack.pushFirst("element 1");
-
-        Assertions.assertEquals("element 1", this.redisStack.peekFirst());
-        Assertions.assertEquals(1, this.redisStack.size());
     }
 
     @Test
@@ -131,6 +107,6 @@ class DistStackTest {
         t2.join();
         t3.join();
 
-        Assertions.assertEquals(15_000, this.redisStack.size());
+        Assertions.assertEquals(4, this.redisStack.size());
     }
 }
