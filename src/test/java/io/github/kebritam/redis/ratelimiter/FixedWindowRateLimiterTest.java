@@ -39,6 +39,45 @@ class FixedWindowRateLimiterTest {
     }
 
     @Test
+    void shouldBeApplicableWhenRunningConcurrentlyAndInParallel() throws InterruptedException {
+        final int acceptedCalls = 100;
+        RateLimiter limiter1 = new FixedWindowRateLimiter(
+                container.getRedisHost() + ":" + container.getRedisPort(),
+                acceptedCalls);
+        RateLimiter limiter2 = new FixedWindowRateLimiter(
+                container.getRedisHost() + ":" + container.getRedisPort(),
+                acceptedCalls);
+
+        Thread thread1 = Thread.ofVirtual().start(() -> {
+            for (int i = 0; i < acceptedCalls / 4; i++) {
+                Assertions.assertTrue(limiter1.use("userUniqueToken"));
+            }
+        });
+        Thread thread2 = Thread.ofVirtual().start(() -> {
+            for (int i = 0; i < acceptedCalls / 4; i++) {
+                Assertions.assertTrue(limiter1.use("userUniqueToken"));
+            }
+        });
+        Thread thread3 = Thread.ofVirtual().start(() -> {
+            for (int i = 0; i < acceptedCalls / 4; i++) {
+                Assertions.assertTrue(limiter2.use("userUniqueToken"));
+            }
+        });
+        Thread thread4 = Thread.ofVirtual().start(() -> {
+            for (int i = 0; i < acceptedCalls / 4; i++) {
+                Assertions.assertTrue(limiter2.use("userUniqueToken"));
+            }
+        });
+        thread1.join();
+        thread2.join();
+        thread3.join();
+        thread4.join();
+        for (int i = 0; i < 60; i++) {
+            Assertions.assertFalse(limiter1.use("userUniqueToken"));
+        }
+    }
+
+    @Test
     void shouldAccountRateLimitTokensSeparately() {
         final int acceptedCalls = 50;
         RateLimiter limiter = new FixedWindowRateLimiter(

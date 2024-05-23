@@ -18,10 +18,9 @@ public class FixedWindowRateLimiter implements RateLimiter {
     public boolean use(String token) {
         Response<Long> requestCount;
         try (Jedis jedis = this.pool.getResource();
-             Transaction tx = jedis.multi()) {
-            requestCount = tx.incr(token + ":" + LocalDateTime.now().getMinute());
-            tx.expire(token, 60);
-            tx.exec();
+             Pipeline pipe = jedis.pipelined()) {
+            requestCount = pipe.incr(token + ":" + LocalDateTime.now().getMinute());
+            pipe.expire(token, 60);
         }
         Long count = requestCount.get();
         return count <= this.maxUsage;
